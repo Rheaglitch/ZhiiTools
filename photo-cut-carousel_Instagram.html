@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Carousel Cutter — Free Source Size</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;max-width:980px;margin:36px auto;padding:0 20px;background:#f5f5f5;color:#222}
+.card{background:#fff;border-radius:18px;padding:26px;box-shadow:0 4px 24px #0001}
+h1{margin:0 0 8px}.sub{color:#555;margin-top:0}
+.row{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:18px 0}
+.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:13px;font-weight:700}
+input,select,button{font-size:15px;padding:10px 12px;border-radius:10px;border:1px solid #ccc}
+input{width:140px}select{width:90px}button{cursor:pointer;background:#222;color:white;border:0;font-weight:700}button:disabled{opacity:.4;cursor:not-allowed}
+.info{font-size:14px;color:#555;margin:12px 0}.ok{color:#167a3b}
+.note{background:#f0f0f0;border-radius:12px;padding:13px;font-size:14px;line-height:1.5}
+#preview{display:flex;gap:12px;overflow:auto;margin-top:20px;padding:4px 0 12px}
+.item{flex:0 0 auto;text-align:center;font-size:12px}.item img{display:block;width:162px;height:auto;max-height:210px;object-fit:contain;border:1px solid #ddd;background:#eee;border-radius:8px;margin-bottom:5px}
+.small{font-size:12px;color:#666}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>✂️ Carousel Cutter</h1>
+<p class="sub">Ukuran gambar sumber bebas. Tentukan ukuran hasil per slide + jumlah slide.</p>
+
+<div class="row">
+  <div class="field"><label>Gambar carousel</label><input id="file" type="file" accept="image/*"></div>
+  <div class="field"><label>Lebar hasil / slide</label><input id="w" type="number" min="1" value="1080"></div>
+  <div class="field"><label>Tinggi hasil / slide</label><input id="h" type="number" min="1" value="1350"></div>
+  <div class="field"><label>Jumlah slide</label><select id="count">
+    <option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+  </select></div>
+  <button id="cut" disabled>Potong</button>
+  <button id="download" disabled>Download semua</button>
+</div>
+
+<div id="info">Belum ada gambar.</div>
+<div class="note">
+  <b>Ukuran gambar sumber bebas.</b> Tool akan membagi gambar secara horizontal menjadi jumlah slide yang kamu pilih, lalu setiap bagian diubah menjadi ukuran hasil yang kamu masukkan.
+  <br><br>
+  Contoh: gambar sumber <b>1280×904</b>, pilih <b>1080×1350</b> dan <b>3 slide</b> → otomatis jadi 3 file 1080×1350. Tidak perlu membuat gambar sumber 3240×1350 terlebih dahulu.
+  <br><br>
+  <b>Catatan:</b> karena rasio gambar sumber bisa berbeda dari rasio hasil, bagian gambar <b>tidak akan diregangkan</b>. Ukuran dipertahankan proporsional; jika terlalu besar, bagian yang berlebih akan dipotong, bukan di-stretch.
+</div>
+<div id="preview"></div>
+</div>
+
+<script>
+const file=document.getElementById('file'), w=document.getElementById('w'), h=document.getElementById('h'), count=document.getElementById('count');
+const cut=document.getElementById('cut'), download=document.getElementById('download'), info=document.getElementById('info'), preview=document.getElementById('preview');
+let img=null, results=[];
+
+file.onchange=()=>{
+  const f=file.files[0]; if(!f)return;
+  const url=URL.createObjectURL(f);
+  img=new Image();
+  img.onload=()=>{
+    info.className='info';
+    info.textContent=`Sumber: ${img.naturalWidth} × ${img.naturalHeight} px. Siap dipotong menjadi ${count.value} slide.`;
+    cut.disabled=false; download.disabled=true; preview.innerHTML=''; results=[];
+    URL.revokeObjectURL(url);
+  };
+  img.src=url;
+};
+count.onchange=()=>{if(img) info.textContent=`Sumber: ${img.naturalWidth} × ${img.naturalHeight} px. Siap dipotong menjadi ${count.value} slide.`;};
+
+function makeSlices(){
+  if(!img)return;
+  const outW=Math.max(1,Number(w.value)), outH=Math.max(1,Number(h.value)), n=Number(count.value);
+  results=[]; preview.innerHTML='';
+  const sliceW=img.naturalWidth/n;
+
+  for(let i=0;i<n;i++){
+    const c=document.createElement('canvas');
+    c.width=outW; c.height=outH;
+    const ctx=c.getContext('2d');
+
+    // Split the original image horizontally first.
+    const sx=i*sliceW;
+    const sw=(i===n-1 ? img.naturalWidth-sx : sliceW);
+    const sh=img.naturalHeight;
+
+    // NEVER stretch the image.
+    // Scale uniformly only when necessary, then crop excess.
+    // If the source section is narrower/taller than the requested output,
+    // keep its proportions and center it instead of distorting it.
+    const scale=Math.min(outW/sw, outH/sh, 1);
+    const scaledW=sw*scale;
+    const scaledH=sh*scale;
+
+    // If the scaled section is larger than the output in either dimension,
+    // crop the excess from the center. Otherwise, keep the whole section.
+    let drawW=scaledW, drawH=scaledH;
+    let dx=(outW-drawW)/2, dy=(outH-drawH)/2;
+
+    if(drawW > outW || drawH > outH){
+      const cropScale=Math.max(outW/sw, outH/sh);
+      drawW=sw*cropScale;
+      drawH=sh*cropScale;
+      dx=(outW-drawW)/2;
+      dy=(outH-drawH)/2;
+    }
+
+    // Draw with uniform scaling only. No independent X/Y scaling.
+    ctx.drawImage(img,sx,0,sw,sh,dx,dy,drawW,drawH);
+
+    results.push(c);
+    const wrap=document.createElement('div'); wrap.className='item';
+    const im=document.createElement('img'); im.src=c.toDataURL('image/png');
+    wrap.append(im);
+    const lab=document.createElement('div');
+    lab.textContent=`Slide ${String(i+1).padStart(2,'0')} • ${outW}×${outH}`;
+    wrap.append(lab); preview.append(wrap);
+  }
+
+  info.className='info ok';
+  info.textContent=`✓ Berhasil: ${n} slide × ${outW}×${outH} px. Tidak ada stretch/distorsi.`;
+}
+cut.onclick=makeSlices;
+download.onclick=async()=>{
+  for(let i=0;i<results.length;i++){
+    const blob=await new Promise(r=>results[i].toBlob(r,'image/png'));
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`carousel-${String(i+1).padStart(2,'0')}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    await new Promise(r=>setTimeout(r,300));
+  }
+  info.textContent='✓ Semua slide sudah di-download. Cek folder Downloads.';
+};
+</script>
+</body>
+</html>
