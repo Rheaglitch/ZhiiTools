@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Penghapus Background Gambar</title>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #171717;
+        color: #fff;
+    }
+    h2 { margin: 0 0 8px; }
+    .subtitle { color: #bbb; margin-top: 0; }
+    .app {
+        max-width: 1200px;
+        margin: auto;
+    }
+    .layout {
+        display: grid;
+        grid-template-columns: 330px 1fr;
+        gap: 20px;
+        align-items: start;
+    }
+    .controls {
+        background: #272727;
+        padding: 18px;
+        border-radius: 12px;
+        box-shadow: 0 4px 18px rgba(0,0,0,.35);
+    }
+    .control { margin: 0 0 16px; }
+    label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 7px;
+        font-size: 14px;
+    }
+    input[type="range"] { width: 100%; }
+    .value {
+        display: inline-block;
+        min-width: 38px;
+        padding: 3px 7px;
+        border-radius: 5px;
+        background: #444;
+        text-align: center;
+        font-size: 13px;
+    }
+    input[type="file"] {
+        width: 100%;
+        padding: 10px;
+        background: #333;
+        border-radius: 7px;
+        color: #fff;
+    }
+    input[type="color"] {
+        width: 100%;
+        height: 42px;
+        border: 0;
+        padding: 2px;
+        background: #333;
+        border-radius: 7px;
+        cursor: pointer;
+    }
+    button {
+        width: 100%;
+        border: 0;
+        border-radius: 7px;
+        padding: 12px;
+        font-size: 15px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    #downloadBtn {
+        margin-top: 8px;
+        background: #00bcd4;
+        color: #fff;
+    }
+    #downloadBtn:disabled {
+        background: #555;
+        cursor: not-allowed;
+        opacity: .7;
+    }
+    .preview-area {
+        display: grid;
+        gap: 16px;
+    }
+    .preview-card {
+        background: #252525;
+        border-radius: 12px;
+        padding: 14px;
+    }
+    .preview-title {
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    .preview-box {
+        min-height: 240px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: auto;
+        border: 2px dashed #666;
+        border-radius: 8px;
+        background-color: #303030;
+        background-image:
+            linear-gradient(45deg, #444 25%, transparent 25%),
+            linear-gradient(-45deg, #444 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #444 75%),
+            linear-gradient(-45deg, transparent 75%, #444 75%);
+        background-size: 20px 20px;
+        background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    }
+    #previewImage {
+        display: none;
+        max-width: 100%;
+        max-height: 600px;
+        object-fit: contain;
+    }
+    #myCanvas {
+        display: none;
+        max-width: 100%;
+        height: auto;
+        cursor: crosshair;
+        border: 1px solid #777;
+    }
+    .hint {
+        color: #aaa;
+        font-size: 12px;
+        margin: 8px 0 0;
+    }
+    #status {
+        color: #9ee7ef;
+        font-size: 13px;
+        min-height: 18px;
+        margin-top: 10px;
+    }
+
+    .brush-tools {
+        border-top: 1px solid #444;
+        padding-top: 14px;
+    }
+    .mode-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .mode-btn {
+        width: 100%;
+        padding: 10px 8px;
+        background: #3a3a3a;
+        color: #ddd;
+        border: 1px solid #555;
+        border-radius: 7px;
+        font-size: 13px;
+    }
+    .mode-btn.active {
+        background: #00a7bd;
+        color: white;
+        border-color: #00d9f2;
+    }
+    .undo-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .secondary-btn {
+        background: #3a3a3a;
+        color: #eee;
+        border: 1px solid #555;
+        font-size: 13px;
+    }
+    .secondary-btn:hover:not(:disabled) {
+        background: #4a4a4a;
+    }
+    .secondary-btn:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 800px) {
+        body { padding: 12px; }
+        .layout { grid-template-columns: 1fr; }
+    }
+</style>
+</head>
+<body>
+<div class="app">
+    <h2>Hapus Background Gambar</h2>
+    <p class="subtitle">Upload gambar, pilih warna background, lalu rapikan dengan kuas jika diperlukan.</p>
+
+    <div class="layout">
+        <div class="controls">
+            <div class="control">
+                <label for="upload">1. Pilih gambar</label>
+                <input type="file" id="upload" accept="image/*">
+            </div>
+
+            <div class="control">
+                <label for="targetColor">2. Warna background</label>
+                <input type="color" id="targetColor" value="#ffffff">
+            </div>
+
+            <div class="control">
+                <label for="edgeThresh">3. Kekuatan dinding pembatas</label>
+                <input type="range" id="edgeThresh" min="1" max="100" value="20">
+                <span class="value" id="edgeValue">20</span>
+            </div>
+
+            <div class="control">
+                <label for="tolerance">4. Toleransi hapus warna</label>
+                <input type="range" id="tolerance" min="0" max="255" value="70">
+                <span class="value" id="tolValue">70</span>
+            </div>
+
+            <div class="control">
+                <label for="featherEff">5. Kelembutan tepi</label>
+                <input type="range" id="featherEff" min="0" max="5" value="2">
+                <span class="value" id="featherValue">2</span>
+            </div>
+
+            <div class="control">
+                <label for="brushSize">6. Ukuran kuas penghapus</label>
+                <input type="range" id="brushSize" min="5" max="100" value="30">
+                <span class="value" id="brushValue">30</span>
+                <p class="hint">Klik dan seret pada hasil gambar untuk menghapus bagian yang masih tersisa.</p>
+            </div>
+
+
+            <div class="control brush-tools">
+                <label>7. Mode kuas</label>
+                <div class="mode-buttons">
+                    <button type="button" id="eraseModeBtn" class="mode-btn active">🧹 Hapus</button>
+                    <button type="button" id="repairModeBtn" class="mode-btn">🩹 Repair</button>
+                </div>
+            </div>
+
+            <div class="control">
+                <label>8. Jenis kuas</label>
+                <div class="mode-buttons">
+                    <button type="button" id="hardBrushBtn" class="mode-btn active">● Hard</button>
+                    <button type="button" id="softBrushBtn" class="mode-btn">◌ Soft</button>
+                </div>
+                <p class="hint">Hard = tepi tegas. Soft = tepi lembut.</p>
+            </div>
+
+            <div class="control undo-row">
+                <button type="button" id="undoBtn" class="secondary-btn" disabled>↶ Undo Kuas</button>
+                <button type="button" id="clearBrushBtn" class="secondary-btn">↺ Reset Kuas</button>
+            </div>
+
+            <button id="downloadBtn" disabled>📥 Unduh PNG Transparan</button>
+            <div id="status">Belum ada gambar.</div>
+        </div>
+
+        <div class="preview-area">
+            <div class="preview-card">
+                <div class="preview-title">Preview gambar asli</div>
+                <div class="preview-box">
+                    <img id="previewImage" alt="Preview gambar asli">
+                    <span id="emptyPreview">Upload gambar untuk melihat preview.</span>
+                </div>
+            </div>
+
+            <div class="preview-card">
+                <div class="preview-title">Hasil background transparan</div>
+                <div class="preview-box">
+                    <canvas id="myCanvas"></canvas>
+                    <span id="emptyResult">Hasil akan muncul di sini.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const upload = document.getElementById('upload');
+const previewImage = document.getElementById('previewImage');
+const emptyPreview = document.getElementById('emptyPreview');
+const emptyResult = document.getElementById('emptyResult');
+const canvas = document.getElementById('myCanvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+const targetColorInput = document.getElementById('targetColor');
+const toleranceInput = document.getElementById('tolerance');
+const tolValue = document.getElementById('tolValue');
+const edgeThreshInput = document.getElementById('edgeThresh');
+const edgeValue = document.getElementById('edgeValue');
+const featherEffInput = document.getElementById('featherEff');
+const featherValue = document.getElementById('featherValue');
+const brushSizeInput = document.getElementById('brushSize');
+const brushValue = document.getElementById('brushValue');
+const downloadBtn = document.getElementById('downloadBtn');
+const statusEl = document.getElementById('status');
+
+let originalImageData = null;
+let userBrushMask = null;
+let repairBrushMask = null;
+let imgWidth = 0;
+let imgHeight = 0;
+let isDrawing = false;
+
+let brushMode = 'erase';
+let brushType = 'hard';
+let brushHistory = [];
+const MAX_UNDO = 30;
+
+const eraseModeBtn = document.getElementById('eraseModeBtn');
+const repairModeBtn = document.getElementById('repairModeBtn');
+const hardBrushBtn = document.getElementById('hardBrushBtn');
+const softBrushBtn = document.getElementById('softBrushBtn');
+const undoBtn = document.getElementById('undoBtn');
+const clearBrushBtn = document.getElementById('clearBrushBtn');
+
+upload.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    // Gunakan FileReader agar file lokal JPG/PNG/WebP
+    // bisa dibaca langsung saat HTML dibuka dari komputer.
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+        const img = new Image();
+
+        img.onload = () => {
+            imgWidth = img.naturalWidth || img.width;
+            imgHeight = img.naturalHeight || img.height;
+
+            if (!imgWidth || !imgHeight) {
+                statusEl.textContent = 'Ukuran gambar tidak valid.';
+                return;
+            }
+
+            // Preview gambar asli
+            previewImage.src = event.target.result;
+            previewImage.style.display = 'block';
+            emptyPreview.style.display = 'none';
+
+            // Canvas hasil
+            canvas.width = imgWidth;
+            canvas.height = imgHeight;
+            ctx.clearRect(0, 0, imgWidth, imgHeight);
+            ctx.drawImage(img, 0, 0);
+
+            try {
+                originalImageData = ctx.getImageData(0, 0, imgWidth, imgHeight);
+            } catch (err) {
+                statusEl.textContent = 'Browser menolak membaca pixel gambar.';
+                console.error(err);
+                return;
+            }
+
+            userBrushMask = new Uint8Array(imgWidth * imgHeight);
+            repairBrushMask = new Uint8Array(imgWidth * imgHeight);
+            brushHistory = [];
+            updateUndoButton();
+
+            canvas.style.display = 'block';
+            emptyResult.style.display = 'none';
+            downloadBtn.disabled = false;
+
+            prosesHapus();
+        };
+
+        img.onerror = () => {
+            statusEl.textContent = 'Format gambar tidak didukung browser. Gunakan JPG atau PNG.';
+        };
+
+        img.src = event.target.result;
+    };
+
+    reader.onerror = () => {
+        statusEl.textContent = 'Gagal membaca file gambar.';
+    };
+
+    reader.readAsDataURL(file);
+});
+
+[targetColorInput, toleranceInput, edgeThreshInput, featherEffInput].forEach(input => {
+    input.addEventListener('input', () => {
+        tolValue.textContent = toleranceInput.value;
+        edgeValue.textContent = edgeThreshInput.value;
+        featherValue.textContent = featherEffInput.value;
+        if (originalImageData) prosesHapus();
+    });
+});
+
+brushSizeInput.addEventListener('input', () => {
+    brushValue.textContent = brushSizeInput.value;
+});
+
+canvas.addEventListener('mousedown', (e) => {
+    if (!originalImageData) return;
+    isDrawing = true;
+    goresKuasManual(e);
+});
+canvas.addEventListener('mousemove', (e) => {
+    if (isDrawing) goresKuasManual(e);
+});
+window.addEventListener('mouseup', () => {
+    isDrawing = false;
+});
+
+canvas.addEventListener('touchstart', (e) => {
+    if (!originalImageData) return;
+    e.preventDefault();
+    isDrawing = true;
+    goresKuasManual(e.touches[0]);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    goresKuasManual(e.touches[0]);
+}, { passive: false });
+
+window.addEventListener('touchend', () => {
+    isDrawing = false;
+});
+
+function getCanvasPoint(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = imgWidth / rect.width;
+    const scaleY = imgHeight / rect.height;
+
+    return {
+        x: Math.max(0, Math.min(imgWidth - 1, Math.floor((e.clientX - rect.left) * scaleX))),
+        y: Math.max(0, Math.min(imgHeight - 1, Math.floor((e.clientY - rect.top) * scaleY)))
+    };
+}
+
+function saveBrushState() {
+    if (!userBrushMask || !repairBrushMask) return;
+    brushHistory.push({
+        erase: new Uint8Array(userBrushMask),
+        repair: new Uint8Array(repairBrushMask)
+    });
+    if (brushHistory.length > MAX_UNDO) brushHistory.shift();
+    updateUndoButton();
+}
+
+function updateUndoButton() {
+    if (undoBtn) undoBtn.disabled = brushHistory.length === 0;
+}
+
+function setBrushMode(mode) {
+    brushMode = mode;
+    eraseModeBtn.classList.toggle('active', mode === 'erase');
+    repairModeBtn.classList.toggle('active', mode === 'repair');
+}
+
+function setBrushType(type) {
+    brushType = type;
+    hardBrushBtn.classList.toggle('active', type === 'hard');
+    softBrushBtn.classList.toggle('active', type === 'soft');
+}
+
+eraseModeBtn.addEventListener('click', () => setBrushMode('erase'));
+repairModeBtn.addEventListener('click', () => setBrushMode('repair'));
+hardBrushBtn.addEventListener('click', () => setBrushType('hard'));
+softBrushBtn.addEventListener('click', () => setBrushType('soft'));
+
+undoBtn.addEventListener('click', () => {
+    if (!brushHistory.length || !userBrushMask || !repairBrushMask) return;
+    const previous = brushHistory.pop();
+    userBrushMask.set(previous.erase);
+    repairBrushMask.set(previous.repair);
+    updateUndoButton();
+    prosesHapus();
+});
+
+clearBrushBtn.addEventListener('click', () => {
+    if (!userBrushMask || !repairBrushMask) return;
+    saveBrushState();
+    userBrushMask.fill(0);
+    repairBrushMask.fill(0);
+    prosesHapus();
+});
+
+function goresKuasManual(e) {
+    if (!originalImageData || !userBrushMask || !repairBrushMask) return;
+
+    saveBrushState();
+
+    const point = getCanvasPoint(e);
+    const radius = Math.max(1, parseInt(brushSizeInput.value, 10));
+
+    const startX = Math.max(0, point.x - radius);
+    const endX = Math.min(imgWidth - 1, point.x + radius);
+    const startY = Math.max(0, point.y - radius);
+    const endY = Math.min(imgHeight - 1, point.y + radius);
+
+    for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+            const dx = x - point.x;
+            const dy = y - point.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > radius) continue;
+
+            let strength = 255;
+            if (brushType === 'soft') {
+                strength = Math.round(255 * (1 - dist / radius));
+                strength = Math.max(1, strength);
+            }
+
+            const idx = y * imgWidth + x;
+
+            if (brushMode === 'erase') {
+                userBrushMask[idx] = Math.max(userBrushMask[idx], strength);
+                repairBrushMask[idx] = 0;
+            } else {
+                repairBrushMask[idx] = Math.max(repairBrushMask[idx], strength);
+                userBrushMask[idx] = 0;
+            }
+        }
+    }
+
+    prosesHapus();
+}
+function prosesHapus() {
+    if (!originalImageData) return;
+
+    statusEl.textContent = 'Memproses...';
+
+    // Kerjakan setelah browser sempat memperbarui UI.
+    requestAnimationFrame(() => {
+        const imgData = new ImageData(
+            new Uint8ClampedArray(originalImageData.data),
+            imgWidth,
+            imgHeight
+        );
+        const data = imgData.data;
+
+        const tolerance = parseInt(toleranceInput.value, 10);
+        const edgeThreshold = parseInt(edgeThreshInput.value, 10);
+        const featherRadius = parseInt(featherEffInput.value, 10);
+
+        const hex = targetColorInput.value;
+        const baseR = parseInt(hex.slice(1, 3), 16);
+        const baseG = parseInt(hex.slice(3, 5), 16);
+        const baseB = parseInt(hex.slice(5, 7), 16);
+
+        const totalPixels = imgWidth * imgHeight;
+        const edgeMap = new Uint8Array(totalPixels);
+
+        // Cari tepi/perubahan warna yang menjadi "dinding".
+        for (let y = 0; y < imgHeight - 1; y++) {
+            for (let x = 0; x < imgWidth - 1; x++) {
+                const idx = y * imgWidth + x;
+                const p = idx * 4;
+                const right = p + 4;
+                const bottom = p + imgWidth * 4;
+
+                const current = (data[p] + data[p + 1] + data[p + 2]) / 3;
+                const vRight = (data[right] + data[right + 1] + data[right + 2]) / 3;
+                const vBottom = (data[bottom] + data[bottom + 1] + data[bottom + 2]) / 3;
+
+                if (
+                    Math.abs(current - vRight) > edgeThreshold ||
+                    Math.abs(current - vBottom) > edgeThreshold
+                ) {
+                    edgeMap[idx] = 1;
+                }
+            }
+        }
+
+        const visited = new Uint8Array(totalPixels);
+        const maskMap = new Uint8Array(totalPixels);
+
+        // Queue hanya memasukkan pixel sekali, sehingga tidak overflow.
+        const queue = new Int32Array(totalPixels);
+        let head = 0;
+        let tail = 0;
+
+        function tryAdd(x, y) {
+            if (x < 0 || x >= imgWidth || y < 0 || y >= imgHeight) return;
+
+            const idx = y * imgWidth + x;
+            if (visited[idx]) return;
+
+            visited[idx] = 1;
+
+            if (edgeMap[idx]) return;
+
+            const p = idx * 4;
+            const distance = Math.sqrt(
+                Math.pow(data[p] - baseR, 2) +
+                Math.pow(data[p + 1] - baseG, 2) +
+                Math.pow(data[p + 2] - baseB, 2)
+            );
+
+            if (distance <= tolerance) {
+                maskMap[idx] = 1;
+                queue[tail++] = idx;
+            }
+        }
+
+        // Mulai dari seluruh sisi gambar.
+        for (let x = 0; x < imgWidth; x++) {
+            tryAdd(x, 0);
+            tryAdd(x, imgHeight - 1);
+        }
+        for (let y = 0; y < imgHeight; y++) {
+            tryAdd(0, y);
+            tryAdd(imgWidth - 1, y);
+        }
+
+        while (head < tail) {
+            const idx = queue[head++];
+            const x = idx % imgWidth;
+            const y = Math.floor(idx / imgWidth);
+
+            tryAdd(x - 1, y);
+            tryAdd(x + 1, y);
+            tryAdd(x, y - 1);
+            tryAdd(x, y + 1);
+        }
+
+        // Tambahkan penghapusan manual.
+        for (let i = 0; i < totalPixels; i++) {
+            if (userBrushMask[i]) maskMap[i] = 1;
+        }
+
+        // Repair selalu mengalahkan penghapusan otomatis/manual.
+        // Nilainya juga bisa dipakai sebagai kekuatan brush Soft.
+        for (let i = 0; i < totalPixels; i++) {
+            if (repairBrushMask[i]) maskMap[i] = 0;
+        }
+
+        // Buat alpha transparan + feathering.
+        for (let y = 0; y < imgHeight; y++) {
+            for (let x = 0; x < imgWidth; x++) {
+                const idx = y * imgWidth + x;
+                const p = idx * 4;
+
+                if (repairBrushMask[idx]) {
+                    const s = repairBrushMask[idx] / 255;
+                    const src = originalImageData.data;
+                    data[p] = Math.round(data[p] * (1 - s) + src[p] * s);
+                    data[p + 1] = Math.round(data[p + 1] * (1 - s) + src[p + 1] * s);
+                    data[p + 2] = Math.round(data[p + 2] * (1 - s) + src[p + 2] * s);
+                    data[p + 3] = Math.round(data[p + 3] * (1 - s) + src[p + 3] * s);
+                } else if (maskMap[idx]) {
+                    data[p + 3] = 0;
+                } else if (featherRadius > 0) {
+                    let bgCount = 0;
+                    let totalCount = 0;
+
+                    for (let ky = -featherRadius; ky <= featherRadius; ky++) {
+                        for (let kx = -featherRadius; kx <= featherRadius; kx++) {
+                            const nx = x + kx;
+                            const ny = y + ky;
+
+                            if (
+                                nx >= 0 && nx < imgWidth &&
+                                ny >= 0 && ny < imgHeight
+                            ) {
+                                totalCount++;
+                                if (maskMap[ny * imgWidth + nx]) bgCount++;
+                            }
+                        }
+                    }
+
+                    if (bgCount > 0) {
+                        data[p + 3] = Math.round(
+                            data[p + 3] * (1 - bgCount / totalCount)
+                        );
+                    }
+                }
+            }
+        }
+
+        // Ini adalah canvas hasil yang akan dipakai untuk download.
+        ctx.clearRect(0, 0, imgWidth, imgHeight);
+        ctx.putImageData(imgData, 0, 0);
+
+        statusEl.textContent = 'Hasil siap. Background sudah transparan.';
+    });
+}
+
+downloadBtn.addEventListener('click', () => {
+    if (!originalImageData || !canvas.width || !canvas.height) {
+        alert('Upload gambar terlebih dahulu.');
+        return;
+    }
+
+    try {
+        // Pastikan canvas berisi hasil transparan terbaru.
+        // PNG mempertahankan channel alpha/transparansi.
+        const dataUrl = canvas.toDataURL('image/png');
+
+        if (!dataUrl || dataUrl === 'data:,') {
+            throw new Error('Canvas kosong.');
+        }
+
+        // Buat link download sementara.
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = 'hasil-background-transparan.png';
+        link.style.display = 'none';
+
+        document.body.appendChild(link);
+        link.click();
+
+        // Hapus link setelah trigger download.
+        setTimeout(() => {
+            if (link.parentNode) link.parentNode.removeChild(link);
+        }, 1000);
+
+        statusEl.textContent = 'Download PNG berhasil dipicu.';
+    } catch (error) {
+        console.error('Download gagal:', error);
+        alert('Gagal membuat PNG. Coba upload ulang gambar lalu proses kembali.');
+    }
+});
+</script>
+</body>
+</html>
+

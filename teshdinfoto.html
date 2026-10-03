@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HD Photo Reconstructor — Reference Based</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#111;color:#eee;padding:20px}
+h2{margin:0 0 8px}
+.subtitle{color:#aaa;margin-top:0}
+.wrap{max-width:1100px;margin:auto}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:18px}
+.panel{background:#202020;padding:18px;border-radius:12px}
+.title{color:#00bcd4;font-weight:bold;border-bottom:1px solid #444;padding-bottom:7px;margin:12px 0}
+label{display:block;font-weight:bold;font-size:13px;margin:12px 0 6px}
+input[type=file]{width:100%}
+input[type=range]{width:100%}
+.row{display:flex;justify-content:space-between;gap:10px}
+.value{background:#444;border-radius:5px;padding:3px 7px;font-size:12px}
+.status{background:#303030;padding:10px;border-radius:7px;font-size:12px;line-height:1.5}
+.buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+button{border:0;border-radius:8px;padding:12px 14px;color:#fff;font-weight:bold;cursor:pointer;flex:1;min-width:130px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.process{background:#1976d2}.download{background:#00a884}.reset{background:#555}
+.preview{background:#181818;border-radius:12px;padding:15px;text-align:center}
+canvas{max-width:100%;height:auto;background:#222;border:1px solid #444;border-radius:8px}
+.monitors{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.monitors canvas{width:100%;height:130px;object-fit:contain}
+.note{font-size:12px;color:#aaa;line-height:1.5;margin-top:12px}
+.mode{background:#303030;padding:10px;border-radius:8px;margin-top:12px}
+.mode label{margin:5px 0;font-weight:normal}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h2>HD Photo Reconstructor — Reference Based</h2>
+<p class="subtitle">Gunakan foto HD sebagai sumber detail utama untuk foto target yang sama tetapi buram / resolusinya lebih rendah.</p>
+
+<div class="grid">
+<div class="panel">
+<div class="title">1. FOTO SUMBER HD</div>
+<label>Upload Foto Referensi HD</label>
+<input type="file" id="uploadHD" accept="image/*">
+<div class="status" id="hdStatus">Belum ada foto HD.</div>
+
+<div class="title">2. FOTO TARGET</div>
+<label>Upload Foto Target Buram / Resolusi Rendah</label>
+<input type="file" id="uploadTarget" accept="image/*">
+<div class="status" id="targetStatus">Belum ada foto target.</div>
+
+<div class="title">3. MODE REKONSTRUKSI</div>
+<div class="mode">
+<label><input type="radio" name="mode" value="reference" checked> Gunakan HD sebagai sumber utama</label>
+<label><input type="radio" name="mode" value="blend"> Gabungkan HD + target</label>
+</div>
+
+<label>Campuran HD</label>
+<div class="row"><input type="range" id="strength" min="0" max="100" value="100"><span class="value" id="strengthValue">100%</span></div>
+
+<label>Ukuran Output</label>
+<div class="mode">
+<label><input type="radio" name="size" value="hd" checked> Resolusi foto HD</label>
+<label><input type="radio" name="size" value="target"> Resolusi target</label>
+</div>
+
+<div class="buttons">
+<button class="process" id="processBtn">⚡ Buat HD</button>
+<button class="download" id="downloadBtn" disabled>⬇️ Unduh PNG HD</button>
+<button class="reset" id="resetBtn">↺ Reset</button>
+</div>
+
+<div class="note">
+<b>Penting:</b> metode ini mengambil detail nyata dari foto HD yang Anda upload.
+Foto HD dan foto target harus merupakan foto/adegan yang sama agar hasilnya tepat.
+Tool ini tidak mengarang detail baru dari foto yang berbeda.
+</div>
+</div>
+
+<div class="preview">
+<b>PREVIEW HASIL</b>
+<br><br>
+<canvas id="resultCanvas"></canvas>
+<div class="monitors">
+<div><small>Foto HD</small><canvas id="hdMonitor"></canvas></div>
+<div><small>Foto Target</small><canvas id="targetMonitor"></canvas></div>
+</div>
+<div class="status" id="resultStatus">Upload kedua foto lalu tekan "Buat HD".</div>
+</div>
+</div>
+</div>
+
+<script>
+const uploadHD=document.getElementById('uploadHD');
+const uploadTarget=document.getElementById('uploadTarget');
+const hdStatus=document.getElementById('hdStatus');
+const targetStatus=document.getElementById('targetStatus');
+const resultStatus=document.getElementById('resultStatus');
+const strength=document.getElementById('strength');
+const strengthValue=document.getElementById('strengthValue');
+const processBtn=document.getElementById('processBtn');
+const downloadBtn=document.getElementById('downloadBtn');
+const resetBtn=document.getElementById('resetBtn');
+
+const resultCanvas=document.getElementById('resultCanvas');
+const resultCtx=resultCanvas.getContext('2d');
+const hdMonitor=document.getElementById('hdMonitor');
+const hdCtx=hdMonitor.getContext('2d');
+const targetMonitor=document.getElementById('targetMonitor');
+const targetCtx=targetMonitor.getContext('2d');
+
+let hdImage=null;
+let targetImage=null;
+
+function readImage(file, done){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>done(img);
+    img.onerror=()=>alert('Gagal membaca gambar.');
+    img.src=e.target.result;
+  };
+  reader.onerror=()=>alert('Gagal membaca file.');
+  reader.readAsDataURL(file);
+}
+
+function monitor(canvas,ctx,img){
+  canvas.width=img.naturalWidth||img.width;
+  canvas.height=img.naturalHeight||img.height;
+  // CSS mengecilkan monitor; pixel internal tetap asli untuk konsistensi.
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img,0,0);
+}
+
+uploadHD.addEventListener('change',e=>{
+  readImage(e.target.files[0],img=>{
+    hdImage=img;
+    monitor(hdMonitor,hdCtx,img);
+    hdStatus.textContent='HD siap: '+img.naturalWidth+' × '+img.naturalHeight+' px';
+    resultStatus.textContent=targetImage?'Kedua foto siap. Tekan "Buat HD".':'Sekarang upload foto target.';
+  });
+});
+
+uploadTarget.addEventListener('change',e=>{
+  readImage(e.target.files[0],img=>{
+    targetImage=img;
+    monitor(targetMonitor,targetCtx,img);
+    targetStatus.textContent='Target: '+img.naturalWidth+' × '+img.naturalHeight+' px';
+    resultStatus.textContent=hdImage?'Kedua foto siap. Tekan "Buat HD".':'Sekarang upload foto HD.';
+  });
+});
+
+strength.addEventListener('input',()=>{
+  strengthValue.textContent=strength.value+'%';
+});
+
+function drawCover(ctx,img,w,h){
+  // Fit cover: menjaga rasio dan mengisi seluruh output.
+  const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+  const scale=Math.max(w/iw,h/ih);
+  const dw=iw*scale, dh=ih*scale;
+  const x=(w-dw)/2, y=(h-dh)/2;
+  ctx.drawImage(img,x,y,dw,dh);
+}
+
+function drawContain(ctx,img,w,h){
+  const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+  const scale=Math.min(w/iw,h/ih);
+  const dw=iw*scale, dh=ih*scale;
+  const x=(w-dw)/2, y=(h-dh)/2;
+  ctx.drawImage(img,x,y,dw,dh);
+}
+
+function makeHD(){
+  if(!hdImage){alert('Upload foto HD terlebih dahulu.');return;}
+  if(!targetImage){alert('Upload foto target terlebih dahulu.');return;}
+
+  const outputHD=document.querySelector('input[name=size]:checked').value==='hd';
+  const mode=document.querySelector('input[name=mode]:checked').value;
+  const alpha=Number(strength.value)/100;
+
+  const ow=outputHD?(hdImage.naturalWidth||hdImage.width):(targetImage.naturalWidth||targetImage.width);
+  const oh=outputHD?(hdImage.naturalHeight||hdImage.height):(targetImage.naturalHeight||targetImage.height);
+
+  resultCanvas.width=ow;
+  resultCanvas.height=oh;
+
+  // Untuk mode utama, pixel/detail berasal langsung dari foto HD.
+  if(mode==='reference'){
+    resultCtx.clearRect(0,0,ow,oh);
+    drawContain(resultCtx,hdImage,ow,oh);
+  }else{
+    // Blend: HD tetap menjadi sumber utama, target hanya memberi kontribusi.
+    const temp=document.createElement('canvas');
+    temp.width=ow; temp.height=oh;
+    const tctx=temp.getContext('2d');
+
+    tctx.clearRect(0,0,ow,oh);
+    drawContain(tctx,hdImage,ow,oh);
+
+    resultCtx.clearRect(0,0,ow,oh);
+    resultCtx.drawImage(temp,0,0);
+
+    resultCtx.globalAlpha=1-alpha;
+    drawContain(resultCtx,targetImage,ow,oh);
+    resultCtx.globalAlpha=1;
+  }
+
+  downloadBtn.disabled=false;
+  resultStatus.textContent='✅ HASIL HD SIAP — '+ow+' × '+oh+' px. Detail berasal dari foto HD.';
+}
+
+processBtn.addEventListener('click',makeHD);
+
+downloadBtn.addEventListener('click',()=>{
+  if(!resultCanvas.width||!resultCanvas.height){alert('Buat hasil HD terlebih dahulu.');return;}
+  resultCanvas.toBlob(blob=>{
+    if(!blob){alert('Browser gagal membuat PNG.');return;}
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='hasil_foto_HD_'+resultCanvas.width+'x'+resultCanvas.height+'.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  },'image/png');
+});
+
+resetBtn.addEventListener('click',()=>{
+  hdImage=null;
+  targetImage=null;
+  uploadHD.value='';
+  uploadTarget.value='';
+  hdStatus.textContent='Belum ada foto HD.';
+  targetStatus.textContent='Belum ada foto target.';
+  resultStatus.textContent='Upload kedua foto lalu tekan "Buat HD".';
+  downloadBtn.disabled=true;
+  resultCanvas.width=300;
+  resultCanvas.height=150;
+  resultCtx.clearRect(0,0,300,150);
+  hdCtx.clearRect(0,0,hdMonitor.width,hdMonitor.height);
+  targetCtx.clearRect(0,0,targetMonitor.width,targetMonitor.height);
+});
+
+strength.dispatchEvent(new Event('input'));
+</script>
+</body>
+</html>
+

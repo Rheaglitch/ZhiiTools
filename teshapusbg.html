@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hapus BG Matematis V5 - Versi Sempurna</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #1a1a1a; color: #fff; }
+        canvas { border: 2px dashed #888; margin-top: 10px; max-width: 100%; background-image: linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; }
+        .controls { margin: 20px; background: #2a2a2a; padding: 20px; border-radius: 12px; display: inline-block; text-align: left; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .slider-group { margin: 12px 0; }
+        label { display: inline-block; width: 240px; font-weight: bold; }
+        span { background: #444; padding: 2px 8px; border-radius: 4px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <h2>Hapus BG Matematis V5: Sistem Kontur & Kelembutan Tepi (Final)</h2>
+    <p>Versi penyempurnaan matematika anti-aliasing tepi halus dan pengunci memori gambar stabil.</p>
+
+    <input type="file" id="upload" accept="image/*"><br><br>
+
+    <div class="controls">
+        <div class="slider-group">
+            <label>1. Pilih Warna Latar/Background:</label>
+            <input type="color" id="targetColor" value="#ffffff">
+        </div>
+        <div class="slider-group">
+            <label>2. Kekuatan Dinding Pembatas (1 - 100):</label>
+            <input type="range" id="edgeThresh" min="1" max="100" value="20">
+            <span id="edgeValue">20</span>
+        </div>
+        <div class="slider-group">
+            <label>3. Toleransi Hapus Warna (0 - 255):</label>
+            <input type="range" id="tolerance" min="0" max="255" value="70">
+            <span id="tolValue">70</span>
+        </div>
+        <div class="slider-group">
+            <label>4. Kelembutan Tepi / Blur (0 - 5 px):</label>
+            <input type="range" id="featherEff" min="0" max="5" value="2">
+            <span id="featherValue">2</span>
+        </div>
+    </div>
+    <br>
+    
+    <canvas id="myCanvas"></canvas>
+
+    <script>
+        const upload = document.getElementById('upload');
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+        const targetColorInput = document.getElementById('targetColor');
+        const toleranceInput = document.getElementById('tolerance');
+        const tolValue = document.getElementById('tolValue');
+        const edgeThreshInput = document.getElementById('edgeThresh');
+        const edgeValue = document.getElementById('edgeValue');
+        const featherEffInput = document.getElementById('featherEff');
+        const featherValue = document.getElementById('featherValue');
+
+        // Pengunci data piksel murni di memori (Anti-Hilang saat digeser ekstrem)
+        let backupImageData = null; 
+        let imgWidth = 0;
+        let imgHeight = 0;
+
+        upload.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            const originalImage = new Image();
+            originalImage.onload = () => {
+                imgWidth = originalImage.width;
+                imgHeight = originalImage.height;
+                canvas.width = imgWidth;
+                canvas.height = imgHeight;
+                
+                // Ambil data piksel mentah sekali saja dan kunci di memori utama
+                ctx.drawImage(originalImage, 0, 0);
+                backupImageData = ctx.getImageData(0, 0, imgWidth, imgHeight);
+                
+                prosesHapusSempurnaV5();
+            };
+            originalImage.src = URL.createObjectURL(files[0]);
+        });
+
+        [targetColorInput, toleranceInput, edgeThreshInput, featherEffInput].forEach(input => {
+            input.addEventListener('input', () => {
+                tolValue.textContent = toleranceInput.value;
+                edgeValue.textContent = edgeThreshInput.value;
+                featherValue.textContent = featherEffInput.value;
+                prosesHapusSempurnaV5();
+            });
+        });
+
+        function prosesHapusSempurnaV5() {
+            if (!backupImageData) return;
+
+            // Buat kontainer data piksel baru dari memori kunci
+            const imgData = new ImageData(new Uint8ClampedArray(backupImageData.data), imgWidth, imgHeight);
+            const data = imgData.data;
+
+            const tolerance = parseInt(toleranceInput.value);
+            const edgeThreshold = parseInt(edgeThreshInput.value);
+            const featherRadius = parseInt(featherEffInput.value);
+
+            const hex = targetColorInput.value;
+            const baseR = parseInt(hex.slice(1, 3), 16);
+            const baseG = parseInt(hex.slice(3, 5), 16);
+            const baseB = parseInt(hex.slice(5, 7), 16);
+
+            // TAHAP 1: DETEKSI TEPI (SOBEL LOGIC)
+            const edgeMap = new Uint8Array(imgWidth * imgHeight);
+            for (let y = 1; y < imgHeight - 1; y++) {
+                for (let x = 1; x < imgWidth - 1; x++) {
+                    const idx = y * imgWidth + x;
+                    const pIdx = idx * 4;
+
+                    const rIdx = pIdx + 4;
+                    const bIdx = pIdx + (imgWidth * 4);
+
+                    const vCurr = (data[pIdx] + data[pIdx+1] + data[pIdx+2]) / 3;
+                    const vRight = (data[rIdx] + data[rIdx+1] + data[rIdx+2]) / 3;
+                    const vBottom = (data[bIdx] + data[bIdx+1] + data[bIdx+2]) / 3;
+
+                    if (Math.abs(vCurr - vRight) > edgeThreshold || Math.abs(vCurr - vBottom) > edgeThreshold) {
+                        edgeMap[idx] = 1; 
+                    }
+                }
+            }
+
+            // TAHAP 2: FLOOD FILL SPASIAL KONTUR
+            const visited = new Uint8Array(imgWidth * imgHeight);
+            const maskMap = new Uint8Array(imgWidth * imgHeight); // Peta masker transparan
+            const queue = [];
+
+            for (let x = 0; x < imgWidth; x++) { queue.push([x, 0]); queue.push([x, imgHeight - 1]); }
+            for (let y = 0; y < imgHeight; y++) { queue.push([0, y]); queue.push([imgWidth - 1, y]); }
+
+            let head = 0;
+            while (head < queue.length) {
+                const [cx, cy] = queue[head++];
+                const idx = cy * imgWidth + cx;
+
+                if (visited[idx]) continue;
+                visited[idx] = 1;
+
+                if (edgeMap[idx] === 1) continue; 
+
+                const pIdx = idx * 4;
+                const distance = Math.sqrt(
+                    Math.pow(data[pIdx] - baseR, 2) + Math.pow(data[pIdx+1] - baseG, 2) + Math.pow(data[pIdx+2] - baseB, 2)
+                );
+
+                if (distance < tolerance) {
+                    maskMap[idx] = 1; // Ditandai sebagai area background yang dihapus
+
+                    const neighbors = [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]];
+                    for (const [nx, ny] of neighbors) {
+                        if (nx >= 0 && nx < imgWidth && ny >= 0 && ny < imgHeight) {
+                            const nIdx = ny * imgWidth + nx;
+                            if (!visited[nIdx]) queue.push([nx, ny]);
+                        }
+                    }
+                }
+            }
+
+            // TAHAP 3: MATEMATIKA ANTI-ALIASING (FEATHERING / BLUR HALUS PINGGIRAN)
+            // Mengubah tepi potong yang tajam kaku menjadi gradasi Alpha lembut mirip AI
+            for (let y = 0; y < imgHeight; y++) {
+                for (let x = 0; x < imgWidth; x++) {
+                    const idx = y * imgWidth + x;
+                    const pIdx = idx * 4;
+
+                    if (maskMap[idx] === 1) {
+                        // Area background murni langsung dibuat transparan total
+                        data[pIdx + 3] = 0; 
+                    } else if (featherRadius > 0) {
+                        // Cari apakah piksel objek ini berada sangat dekat dengan batas background
+                        let bgCount = 0;
+                        let totalCount = 0;
+
+                        for (let ky = -featherRadius; ky <= featherRadius; ky++) {
+                            for (let kx = -featherRadius; kx <= featherRadius; kx++) {
+                                const nx = x + kx;
+                                const ny = y + ky;
+                                if (nx >= 0 && nx < imgWidth && ny >= 0 && ny < imgHeight) {
+                                    totalCount++;
+                                    if (maskMap[ny * imgWidth + nx] === 1) bgCount++;
+                                }
+                            }
+                        }
+
+                        // RUMUS GRADASI ALPHA: Jika piksel objek menempel ke area potongan, buat ia semi-transparan halus
+                        if (bgCount > 0) {
+                            const alphaRatio = 1 - (bgCount / totalCount);
+                            data[pIdx + 3] = data[pIdx + 3] * alphaRatio; 
+                        }
+                    }
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+        }
+    </script>
+</body>
+</html>
+
