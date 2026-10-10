@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Studio — Static QR Generator</title>
+  <meta name="description" content="Static QR Code Generator yang berjalan langsung di browser tanpa login, database, atau penyimpanan link.">
+
+  <style>
+    :root {
+      --bg: #09090c;
+      --surface: #111116;
+      --surface-2: #17171e;
+      --surface-3: #1d1d25;
+      --border: #2a2a34;
+      --text: #f4f4f7;
+      --muted: #9696a4;
+      --muted-2: #70707c;
+      --accent: #ff334f;
+      --accent-hover: #ff4961;
+      --success: #53d98a;
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(255, 51, 79, .09), transparent 30%),
+        radial-gradient(circle at 90% 100%, rgba(255, 51, 79, .055), transparent 28%),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, textarea, select { font: inherit; }
+
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .app {
+      width: min(1160px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 42px 0 48px;
+    }
+
+    /* ---------- Header ---------- */
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 13px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      box-shadow: 0 10px 30px rgba(255, 51, 79, .18);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 40px);
+      line-height: 1;
+      letter-spacing: -.045em;
+    }
+
+    .subtitle {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .header-badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 7px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: #bdbdc7;
+      background: rgba(17,17,22,.72);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 10px rgba(83,217,138,.55);
+    }
+
+    /* ---------- Layout ---------- */
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, .95fr) minmax(420px, 1.05fr);
+      gap: 18px;
+    }
+
+    .card {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(17,17,22,.94);
+      box-shadow: 0 24px 70px rgba(0,0,0,.28);
+    }
+
+    .controls {
+      padding: 22px;
+    }
+
+    .preview {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 15px;
+      letter-spacing: -.01em;
+    }
+
+    .mini-label {
+      color: var(--muted-2);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    /* ---------- Fields ---------- */
+
+    .field { margin-bottom: 17px; }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #d9d9e0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .url-wrap {
+      position: relative;
+    }
+
+    textarea,
+    input[type="text"],
+    select {
+      width: 100%;
+      color: var(--text);
+      background: #0d0d12;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      outline: none;
+      transition: border-color .18s, box-shadow .18s, background .18s;
+    }
+
+    textarea {
+      min-height: 98px;
+      padding: 12px 84px 12px 13px;
+      resize: vertical;
+      line-height: 1.45;
+      font-size: 12px;
+    }
+
+    textarea:focus,
+    select:focus {
+      border-color: rgba(255,51,79,.72);
+      box-shadow: 0 0 0 3px rgba(255,51,79,.09);
+      background: #0f0f15;
+    }
+
+    .paste-btn {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      min-height: 34px;
+      padding: 0 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #d7d7df;
+      background: var(--surface-3);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .paste-btn:hover { border-color: #42424e; }
+
+    .helper {
+      margin-top: 7px;
+      color: var(--muted-2);
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 13px;
+      margin-top: 4px;
+    }
+
+    select {
+      min-height: 44px;
+      padding: 0 12px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .color-control {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 44px;
+      padding: 5px 9px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: #0d0d12;
+    }
+
+    input[type="color"] {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .color-value {
+      color: #c5c5ce;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+    }
+
+    /* ---------- Buttons ---------- */
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 5px;
+    }
+
+    .action {
+      min-height: 45px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+      transition: transform .12s, background .18s, border-color .18s, opacity .18s;
+    }
+
+    .action:active { transform: translateY(1px); }
+
+    .primary {
+      border: 1px solid var(--accent);
+      color: #fff;
+      background: var(--accent);
+    }
+
+    .primary:hover { background: var(--accent-hover); }
+
+    .secondary {
+      padding: 0 17px;
+      border: 1px solid var(--border);
+      color: #d8d8df;
+      background: var(--surface-3);
+    }
+
+    .secondary:hover { border-color: #41414d; }
+
+    .notice {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 12px;
+      color: #ffc5cc;
+      background: rgba(255,51,79,.08);
+      border: 1px solid rgba(255,51,79,.23);
+      border-radius: 10px;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    /* ---------- Preview ---------- */
+
+    .preview-head {
+      margin-bottom: 14px;
+    }
+
+    .format {
+      padding: 5px 8px;
+      color: #aaaab5;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .qr-stage {
+      min-height: 430px;
+      flex: 1;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      border: 1px solid #dedee3;
+      border-radius: 14px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .qr-frame {
+      display: none;
+      max-width: min(100%, 390px);
+      padding: 16px;
+      background: #fff;
+      border-radius: 10px;
+    }
+
+    #qrCanvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      image-rendering: pixelated;
+    }
+
+    .qr-empty {
+      text-align: center;
+      color: #777783;
+      max-width: 245px;
+    }
+
+    .qr-empty-icon {
+      width: 62px;
+      height: 62px;
+      margin: 0 auto 12px;
+      display: grid;
+      place-items: center;
+      border: 2px dashed #b3b3bb;
+      border-radius: 12px;
+      font-size: 25px;
+    }
+
+    .qr-empty strong {
+      display: block;
+      color: #4f4f59;
+      font-size: 13px;
+    }
+
+    .qr-empty span {
+      display: block;
+      margin-top: 6px;
+      color: #898992;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .result {
+      display: none;
+      margin-top: 11px;
+      padding: 10px 11px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0d0d12;
+    }
+
+    .result-label {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--muted-2);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .result-value {
+      display: block;
+      color: #cfcfd7;
+      font-size: 10px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .download {
+      display: none;
+      width: 100%;
+      margin-top: 9px;
+    }
+
+    /* ---------- Static explanation ---------- */
+
+    .static-note {
+      margin-top: 18px;
+      padding: 13px 14px;
+      display: flex;
+      gap: 11px;
+      align-items: flex-start;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: rgba(17,17,22,.7);
+    }
+
+    .static-icon {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: rgba(255,51,79,.1);
+      color: #ff6578;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .static-note strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 11px;
+    }
+
+    .static-note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.55;
+    }
+
+    footer {
+      margin-top: 14px;
+      color: #5f5f69;
+      text-align: center;
+      font-size: 10px;
+    }
+
+    /* ---------- Responsive ---------- */
+
+    @media (max-width: 880px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .header-badges {
+        justify-content: flex-start;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .qr-stage {
+        min-height: 380px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        width: min(100% - 20px, 1160px);
+        padding-top: 24px;
+      }
+
+      .controls,
+      .preview {
+        padding: 17px;
+      }
+
+      .options {
+        grid-template-columns: 1fr;
+      }
+
+      .qr-stage {
+        min-height: 300px;
+        padding: 18px;
+      }
+
+      .qr-frame {
+        max-width: min(100%, 310px);
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+
+    <header>
+      <div class="brand">
+        <div class="brand-mark">QR</div>
+        <div>
+          <h1>QR Studio</h1>
+          <p class="subtitle">Bikin QR Code statis langsung dari browser.</p>
+        </div>
+      </div>
+
+      <div class="header-badges">
+        <span class="badge"><span class="dot"></span> Browser-only</span>
+        <span class="badge">Static QR</span>
+        <span class="badge">No Login</span>
+      </div>
+    </header>
+
+    <section class="layout">
+
+      <!-- LEFT -->
+      <div class="card controls">
+        <div class="section-head">
+          <h2>QR Settings</h2>
+          <span class="mini-label">Generator</span>
+        </div>
+
+        <div class="field">
+          <label for="urlInput">URL / Text</label>
+
+          <div class="url-wrap">
+            <textarea
+              id="urlInput"
+              placeholder="https://contoh.com/halaman-kamu"
+              autocomplete="off"
+              spellcheck="false"
+            ></textarea>
+            <button class="paste-btn" id="pasteBtn" type="button">Paste</button>
+          </div>
+
+          <div class="helper">
+            URL panjang tetap bisa dipakai. Data URL akan langsung ditanam ke dalam QR.
+          </div>
+        </div>
+
+        <div class="options">
+          <div class="field">
+            <label for="sizeSelect">Ukuran</label>
+            <select id="sizeSelect">
+              <option value="256">256 × 256 px</option>
+              <option value="384">384 × 384 px</option>
+              <option value="512" selected>512 × 512 px</option>
+              <option value="768">768 × 768 px</option>
+              <option value="1024">1024 × 1024 px</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="marginSelect">Quiet Zone</label>
+            <select id="marginSelect">
+              <option value="0">0 px</option>
+              <option value="8">8 px</option>
+              <option value="16" selected>16 px</option>
+              <option value="24">24 px</option>
+              <option value="32">32 px</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="fgColor">Warna QR</label>
+            <div class="color-control">
+              <input id="fgColor" type="color" value="#000000">
+              <span class="color-value" id="fgValue">#000000</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="bgColor">Warna Background</label>
+            <div class="color-control">
+              <input id="bgColor" type="color" value="#ffffff">
+              <span class="color-value" id="bgValue">#FFFFFF</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="action primary" id="generateBtn" type="button">Generate QR</button>
+          <button class="action secondary" id="resetBtn" type="button">Reset</button>
+        </div>
+
+        <div class="notice" id="notice"></div>
+
+        <div class="static-note">
+          <div class="static-icon">✓</div>
+          <div>
+            <strong>Static QR — tidak menyimpan data</strong>
+            <p>
+              QR berisi URL asli secara langsung. Tidak ada akun, database,
+              redirect, atau penyimpanan link yang diperlukan.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="card preview">
+        <div class="section-head preview-head">
+          <h2>Preview</h2>
+          <span class="format">PNG</span>
+        </div>
+
+        <div class="qr-stage">
+          <div class="qr-empty" id="emptyState">
+            <div class="qr-empty-icon">▦</div>
+            <strong>QR belum dibuat</strong>
+            <span>Masukkan URL di sebelah kiri, lalu tekan Generate QR.</span>
+          </div>
+
+          <div class="qr-frame" id="qrFrame">
+            <canvas id="qrCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="result" id="result">
+          <span class="result-label">Encoded data</span>
+          <span class="result-value" id="resultValue"></span>
+        </div>
+
+        <button class="action primary download" id="downloadBtn" type="button">
+          Download PNG
+        </button>
+      </div>
+
+    </section>
+
+    <footer>
+      QR dibuat di perangkatmu. URL tidak dikirim ke server aplikasi.
+    </footer>
+
+  </main>
+
+  <!-- Library QR generator. Tidak ada backend/database yang dipakai. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <script>
+    const urlInput = document.getElementById("urlInput");
+    const sizeSelect = document.getElementById("sizeSelect");
+    const marginSelect = document.getElementById("marginSelect");
+    const fgColor = document.getElementById("fgColor");
+    const bgColor = document.getElementById("bgColor");
+
+    const fgValue = document.getElementById("fgValue");
+    const bgValue = document.getElementById("bgValue");
+
+    const generateBtn = document.getElementById("generateBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const pasteBtn = document.getElementById("pasteBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+
+    const emptyState = document.getElementById("emptyState");
+    const qrFrame = document.getElementById("qrFrame");
+    const qrCanvas = document.getElementById("qrCanvas");
+
+    const result = document.getElementById("result");
+    const resultValue = document.getElementById("resultValue");
+    const notice = document.getElementById("notice");
+
+    let lastValue = "";
+
+    function updateColorLabels() {
+      fgValue.textContent = fgColor.value.toUpperCase();
+      bgValue.textContent = bgColor.value.toUpperCase();
+    }
+
+    function showNotice(message) {
+      notice.textContent = message;
+      notice.style.display = "block";
+    }
+
+    function hideNotice() {
+      notice.textContent = "";
+      notice.style.display = "none";
+    }
+
+    function clearPreview() {
+      const temp = document.getElementById("qrTemp");
+      if (temp) temp.remove();
+
+      const ctx = qrCanvas.getContext("2d");
+      ctx.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+
+      qrFrame.style.display = "none";
+      emptyState.style.display = "block";
+      result.style.display = "none";
+      downloadBtn.style.display = "none";
+      lastValue = "";
+    }
+
+    function generateQR() {
+      hideNotice();
+
+      const value = urlInput.value.trim();
+
+      if (!value) {
+        showNotice("Masukkan URL atau teks terlebih dahulu.");
+        urlInput.focus();
+        return;
+      }
+
+      if (typeof QRCode === "undefined") {
+        showNotice(
+          "Library QR belum termuat. Buka file ini saat terhubung ke internet."
+        );
+        return;
+      }
+
+      const size = Number(sizeSelect.value);
+      const margin = Number(marginSelect.value);
+      const dark = fgColor.value;
+      const light = bgColor.value;
+
+      const temp = document.createElement("div");
+      temp.id = "qrTemp";
+      temp.style.position = "fixed";
+      temp.style.left = "-100000px";
+      temp.style.top = "0";
+      document.body.appendChild(temp);
+
+      try {
+        new QRCode(temp, {
+          text: value,
+          width: size,
+          height: size,
+          colorDark: dark,
+          colorLight: light,
+          correctLevel: QRCode.CorrectLevel.M
+        });
+
+        requestAnimationFrame(() => {
+          const sourceCanvas = temp.querySelector("canvas");
+
+          if (!sourceCanvas) {
+            showNotice(
+              "QR gagal dibuat. Coba gunakan URL yang lebih pendek atau teks yang lebih sedikit."
+            );
+            temp.remove();
+            return;
+          }
+
+          const ctx = qrCanvas.getContext("2d");
+
+          qrCanvas.width = size + (margin * 2);
+          qrCanvas.height = size + (margin * 2);
+
+          ctx.fillStyle = light;
+          ctx.fillRect(0, 0, qrCanvas.width, qrCanvas.height);
+          ctx.drawImage(sourceCanvas, margin, margin, size, size);
+
+          qrFrame.style.display = "block";
+          emptyState.style.display = "none";
+
+          resultValue.textContent = value;
+          result.style.display = "block";
+          downloadBtn.style.display = "block";
+
+          lastValue = value;
+          temp.remove();
+        });
+
+      } catch (error) {
+        console.error(error);
+        temp.remove();
+        showNotice("QR gagal dibuat. Periksa isi URL atau coba URL yang lebih pendek.");
+      }
+    }
+
+    async function pasteFromClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+
+        if (text) {
+          urlInput.value = text.trim();
+          hideNotice();
+          urlInput.focus();
+        }
+      } catch {
+        showNotice("Clipboard tidak bisa diakses. Gunakan Ctrl + V secara manual.");
+      }
+    }
+
+    function downloadPNG() {
+      if (!lastValue || qrFrame.style.display === "none") {
+        showNotice("Generate QR terlebih dahulu.");
+        return;
+      }
+
+      const safeName =
+        lastValue
+          .replace(/^https?:\/\//i, "")
+          .replace(/[^a-z0-9]+/gi, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 50) || "qr-code";
+
+      const link = document.createElement("a");
+      link.download = safeName + ".png";
+      link.href = qrCanvas.toDataURL("image/png");
+      link.click();
+    }
+
+    function resetAll() {
+      urlInput.value = "";
+      sizeSelect.value = "512";
+      marginSelect.value = "16";
+      fgColor.value = "#000000";
+      bgColor.value = "#ffffff";
+
+      updateColorLabels();
+      hideNotice();
+      clearPreview();
+      urlInput.focus();
+    }
+
+    fgColor.addEventListener("input", updateColorLabels);
+    bgColor.addEventListener("input", updateColorLabels);
+
+    generateBtn.addEventListener("click", generateQR);
+    resetBtn.addEventListener("click", resetAll);
+    pasteBtn.addEventListener("click", pasteFromClipboard);
+    downloadBtn.addEventListener("click", downloadPNG);
+
+    urlInput.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        generateQR();
+      }
+    });
+
+    updateColorLabels();
+  </script>
+</body>
+</html>
