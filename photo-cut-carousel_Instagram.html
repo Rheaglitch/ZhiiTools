@@ -5,130 +5,233 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Carousel Cutter — Free Source Size</title>
 <style>
-*{box-sizing:border-box}body{font-family:Arial,sans-serif;max-width:980px;margin:36px auto;padding:0 20px;background:#f5f5f5;color:#222}
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;max-width:980px;margin:36px auto;padding:0 20px;background:#f5f5f5;color:#222}
 .card{background:#fff;border-radius:18px;padding:26px;box-shadow:0 4px 24px #0001}
 h1{margin:0 0 8px}.sub{color:#555;margin-top:0}
 .row{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:18px 0}
 .field{display:flex;flex-direction:column;gap:6px}.field label{font-size:13px;font-weight:700}
 input,select,button{font-size:15px;padding:10px 12px;border-radius:10px;border:1px solid #ccc}
-input{width:140px}select{width:90px}button{cursor:pointer;background:#222;color:white;border:0;font-weight:700}button:disabled{opacity:.4;cursor:not-allowed}
-.info{font-size:14px;color:#555;margin:12px 0}.ok{color:#167a3b}
+input{width:140px}input[type=file]{width:240px;max-width:100%}
+select{width:90px}
+button{cursor:pointer;background:#222;color:white;border:0;font-weight:700}
+button:disabled{opacity:.4;cursor:not-allowed}
+.info{font-size:14px;color:#555;margin:12px 0;line-height:1.5}.ok{color:#167a3b}.error{color:#b42318}
 .note{background:#f0f0f0;border-radius:12px;padding:13px;font-size:14px;line-height:1.5}
 #preview{display:flex;gap:12px;overflow:auto;margin-top:20px;padding:4px 0 12px}
-.item{flex:0 0 auto;text-align:center;font-size:12px}.item img{display:block;width:162px;height:auto;max-height:210px;object-fit:contain;border:1px solid #ddd;background:#eee;border-radius:8px;margin-bottom:5px}
-.small{font-size:12px;color:#666}
+.item{flex:0 0 auto;text-align:center;font-size:12px}
+.item img{display:block;width:162px;height:auto;max-height:210px;object-fit:contain;border:1px solid #ddd;background:#eee;border-radius:8px;margin-bottom:5px}
+.status{font-size:12px;color:#666}
+@media(max-width:600px){body{margin:16px auto;padding:0 12px}.card{padding:18px}.field{flex:1 1 130px}input,select{max-width:100%}}
 </style>
 </head>
 <body>
 <div class="card">
 <h1>✂️ Carousel Cutter</h1>
 <p class="sub">Ukuran gambar sumber bebas. Tentukan ukuran hasil per slide + jumlah slide.</p>
-
 <div class="row">
-  <div class="field"><label>Gambar carousel</label><input id="file" type="file" accept="image/*"></div>
-  <div class="field"><label>Lebar hasil / slide</label><input id="w" type="number" min="1" value="1080"></div>
-  <div class="field"><label>Tinggi hasil / slide</label><input id="h" type="number" min="1" value="1350"></div>
-  <div class="field"><label>Jumlah slide</label><select id="count">
+  <div class="field"><label for="file">Gambar carousel</label><input id="file" type="file" accept="image/*"></div>
+  <div class="field"><label for="w">Lebar hasil / slide</label><input id="w" type="number" min="1" max="12000" value="1080"></div>
+  <div class="field"><label for="h">Tinggi hasil / slide</label><input id="h" type="number" min="1" max="12000" value="1350"></div>
+  <div class="field"><label for="count">Jumlah slide</label><select id="count">
     <option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
   </select></div>
   <button id="cut" disabled>Potong</button>
-  <button id="download" disabled>Download semua</button>
+  <button id="download" disabled>Download semua (.ZIP)</button>
 </div>
-
-<div id="info">Belum ada gambar.</div>
+<div id="info" class="info" role="status" aria-live="polite">Belum ada gambar.</div>
 <div class="note">
-  <b>Ukuran gambar sumber bebas.</b> Tool akan membagi gambar secara horizontal menjadi jumlah slide yang kamu pilih, lalu setiap bagian diubah menjadi ukuran hasil yang kamu masukkan.
+  <b>Ukuran gambar sumber bebas.</b> Tool membagi gambar menjadi beberapa bagian secara horizontal, lalu mengubah setiap bagian ke ukuran hasil yang kamu tentukan.
   <br><br>
-  Contoh: gambar sumber <b>1280×904</b>, pilih <b>1080×1350</b> dan <b>3 slide</b> → otomatis jadi 3 file 1080×1350. Tidak perlu membuat gambar sumber 3240×1350 terlebih dahulu.
+  <b>Catatan rasio:</b> gambar tidak diregangkan. Setiap bagian akan diskalakan secara proporsional dan dipotong dari tengah jika perlu agar memenuhi ukuran hasil. Jika bagian sumber lebih kecil daripada ukuran hasil, area kosong akan transparan.
   <br><br>
-  <b>Catatan:</b> karena rasio gambar sumber bisa berbeda dari rasio hasil, bagian gambar <b>tidak akan diregangkan</b>. Ukuran dipertahankan proporsional; jika terlalu besar, bagian yang berlebih akan dipotong, bukan di-stretch.
+  Semua proses dilakukan di browser kamu. Tombol Download semua mengemas seluruh slide sebagai satu file ZIP agar browser tidak memblokir banyak unduhan sekaligus.
 </div>
 <div id="preview"></div>
 </div>
 
+<!-- JSZip dipakai untuk mengemas semua PNG menjadi satu ZIP. Perlu koneksi internet saat pertama kali membuka halaman. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-const file=document.getElementById('file'), w=document.getElementById('w'), h=document.getElementById('h'), count=document.getElementById('count');
-const cut=document.getElementById('cut'), download=document.getElementById('download'), info=document.getElementById('info'), preview=document.getElementById('preview');
-let img=null, results=[];
+'use strict';
+const fileInput = document.getElementById('file');
+const widthInput = document.getElementById('w');
+const heightInput = document.getElementById('h');
+const countInput = document.getElementById('count');
+const cutButton = document.getElementById('cut');
+const downloadButton = document.getElementById('download');
+const info = document.getElementById('info');
+const preview = document.getElementById('preview');
 
-file.onchange=()=>{
-  const f=file.files[0]; if(!f)return;
-  const url=URL.createObjectURL(f);
-  img=new Image();
-  img.onload=()=>{
-    info.className='info';
-    info.textContent=`Sumber: ${img.naturalWidth} × ${img.naturalHeight} px. Siap dipotong menjadi ${count.value} slide.`;
-    cut.disabled=false; download.disabled=true; preview.innerHTML=''; results=[];
-    URL.revokeObjectURL(url);
-  };
-  img.src=url;
-};
-count.onchange=()=>{if(img) info.textContent=`Sumber: ${img.naturalWidth} × ${img.naturalHeight} px. Siap dipotong menjadi ${count.value} slide.`;};
+let img = null;
+let results = [];
+let currentObjectUrl = null;
 
-function makeSlices(){
-  if(!img)return;
-  const outW=Math.max(1,Number(w.value)), outH=Math.max(1,Number(h.value)), n=Number(count.value);
-  results=[]; preview.innerHTML='';
-  const sliceW=img.naturalWidth/n;
-
-  for(let i=0;i<n;i++){
-    const c=document.createElement('canvas');
-    c.width=outW; c.height=outH;
-    const ctx=c.getContext('2d');
-
-    // Split the original image horizontally first.
-    const sx=i*sliceW;
-    const sw=(i===n-1 ? img.naturalWidth-sx : sliceW);
-    const sh=img.naturalHeight;
-
-    // NEVER stretch the image.
-    // Scale uniformly only when necessary, then crop excess.
-    // If the source section is narrower/taller than the requested output,
-    // keep its proportions and center it instead of distorting it.
-    const scale=Math.min(outW/sw, outH/sh, 1);
-    const scaledW=sw*scale;
-    const scaledH=sh*scale;
-
-    // If the scaled section is larger than the output in either dimension,
-    // crop the excess from the center. Otherwise, keep the whole section.
-    let drawW=scaledW, drawH=scaledH;
-    let dx=(outW-drawW)/2, dy=(outH-drawH)/2;
-
-    if(drawW > outW || drawH > outH){
-      const cropScale=Math.max(outW/sw, outH/sh);
-      drawW=sw*cropScale;
-      drawH=sh*cropScale;
-      dx=(outW-drawW)/2;
-      dy=(outH-drawH)/2;
-    }
-
-    // Draw with uniform scaling only. No independent X/Y scaling.
-    ctx.drawImage(img,sx,0,sw,sh,dx,dy,drawW,drawH);
-
-    results.push(c);
-    const wrap=document.createElement('div'); wrap.className='item';
-    const im=document.createElement('img'); im.src=c.toDataURL('image/png');
-    wrap.append(im);
-    const lab=document.createElement('div');
-    lab.textContent=`Slide ${String(i+1).padStart(2,'0')} • ${outW}×${outH}`;
-    wrap.append(lab); preview.append(wrap);
-  }
-
-  info.className='info ok';
-  info.textContent=`✓ Berhasil: ${n} slide × ${outW}×${outH} px. Tidak ada stretch/distorsi.`;
+function setInfo(message, type = '') {
+  info.className = 'info' + (type ? ' ' + type : '');
+  info.textContent = message;
 }
-cut.onclick=makeSlices;
-download.onclick=async()=>{
-  for(let i=0;i<results.length;i++){
-    const blob=await new Promise(r=>results[i].toBlob(r,'image/png'));
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`carousel-${String(i+1).padStart(2,'0')}.png`;
-    document.body.appendChild(a); a.click(); a.remove();
-    await new Promise(r=>setTimeout(r,300));
+function resetResults() {
+  results = [];
+  preview.replaceChildren();
+  downloadButton.disabled = true;
+}
+function getDimensions() {
+  const outW = Number(widthInput.value);
+  const outH = Number(heightInput.value);
+  if (!Number.isInteger(outW) || !Number.isInteger(outH) ||
+      outW < 1 || outH < 1 || outW > 12000 || outH > 12000) {
+    throw new Error('Lebar dan tinggi harus bilangan bulat antara 1–12000 px.');
   }
-  info.textContent='✓ Semua slide sudah di-download. Cek folder Downloads.';
-};
+  return {outW, outH, n: Number(countInput.value)};
+}
+
+fileInput.addEventListener('change', () => {
+  resetResults();
+  img = null;
+  cutButton.disabled = true;
+  const selected = fileInput.files && fileInput.files[0];
+  if (!selected) {
+    setInfo('Belum ada gambar.');
+    return;
+  }
+  if (!selected.type.startsWith('image/')) {
+    setInfo('File yang dipilih bukan gambar yang didukung.', 'error');
+    return;
+  }
+  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+  currentObjectUrl = URL.createObjectURL(selected);
+  const newImage = new Image();
+  newImage.onload = () => {
+    img = newImage;
+    cutButton.disabled = false;
+    setInfo(`Sumber: ${img.naturalWidth} × ${img.naturalHeight} px. Siap dipotong menjadi ${countInput.value} slide.`);
+  };
+  newImage.onerror = () => {
+    setInfo('Gambar tidak bisa dibaca. Coba file PNG, JPG, atau WebP lain.', 'error');
+    URL.revokeObjectURL(currentObjectUrl);
+    currentObjectUrl = null;
+  };
+  newImage.src = currentObjectUrl;
+});
+
+countInput.addEventListener('change', () => {
+  resetResults();
+  if (img) setInfo(`Sumber: ${img.naturalWidth} × ${img.naturalHeight} px. Siap dipotong menjadi ${countInput.value} slide.`);
+});
+[widthInput, heightInput].forEach(el => el.addEventListener('input', resetResults));
+
+function makeSlices() {
+  if (!img) {
+    setInfo('Pilih gambar terlebih dahulu.', 'error');
+    return;
+  }
+  resetResults();
+  let dims;
+  try { dims = getDimensions(); }
+  catch (err) { setInfo(err.message, 'error'); return; }
+
+  const {outW, outH, n} = dims;
+  const sliceW = img.naturalWidth / n;
+
+  try {
+    for (let i = 0; i < n; i++) {
+      const canvas = document.createElement('canvas');
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Browser tidak dapat membuat canvas.');
+
+      const sx = i * sliceW;
+      const sw = (i === n - 1) ? img.naturalWidth - sx : sliceW;
+      const sh = img.naturalHeight;
+
+      // Cover: pertahankan rasio, isi seluruh kanvas, potong bagian berlebih di tengah.
+      const scale = Math.max(outW / sw, outH / sh);
+      const drawW = sw * scale;
+      const drawH = sh * scale;
+      const dx = (outW - drawW) / 2;
+      const dy = (outH - drawH) / 2;
+      ctx.clearRect(0, 0, outW, outH);
+      ctx.drawImage(img, sx, 0, sw, sh, dx, dy, drawW, drawH);
+
+      results.push(canvas);
+      const wrap = document.createElement('div');
+      wrap.className = 'item';
+      const imagePreview = document.createElement('img');
+      imagePreview.alt = `Pratinjau slide ${i + 1}`;
+      imagePreview.src = canvas.toDataURL('image/png');
+      const label = document.createElement('div');
+      label.textContent = `Slide ${String(i + 1).padStart(2, '0')} • ${outW}×${outH}`;
+      wrap.append(imagePreview, label);
+      preview.append(wrap);
+    }
+    downloadButton.disabled = results.length === 0;
+    setInfo(`✓ Berhasil: ${n} slide × ${outW}×${outH} px. Siap diunduh sebagai ZIP.`, 'ok');
+  } catch (err) {
+    resetResults();
+    setInfo(`Gagal memotong gambar: ${err.message}`, 'error');
+    console.error(err);
+  }
+}
+cutButton.addEventListener('click', makeSlices);
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Gagal membuat PNG dari canvas.')), 'image/png');
+  });
+}
+
+downloadButton.addEventListener('click', async () => {
+  if (!results.length) {
+    setInfo('Potong gambar terlebih dahulu sebelum mengunduh.', 'error');
+    return;
+  }
+  if (typeof JSZip === 'undefined') {
+    setInfo('Library ZIP tidak berhasil dimuat. Periksa koneksi internet lalu muat ulang halaman.', 'error');
+    return;
+  }
+
+  downloadButton.disabled = true;
+  cutButton.disabled = true;
+  try {
+    const zip = new JSZip();
+    for (let i = 0; i < results.length; i++) {
+      setInfo(`Menyiapkan gambar ${i + 1}/${results.length}...`);
+      const blob = await canvasToBlob(results[i]);
+      zip.file(`carousel-${String(i + 1).padStart(2, '0')}.png`, blob);
+    }
+    setInfo('Mengemas semua gambar ke ZIP...');
+    const zipBlob = await zip.generateAsync({
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: {level: 3}
+    }, metadata => {
+      setInfo(`Mengemas ZIP... ${Math.round(metadata.percent)}%`);
+    });
+
+    const url = URL.createObjectURL(zipBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'carousel-slides.zip';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    setInfo(`✓ ZIP berhasil dibuat: ${results.length} file PNG di dalam carousel-slides.zip. Periksa folder Downloads.`, 'ok');
+  } catch (err) {
+    console.error(err);
+    setInfo(`Download gagal: ${err.message || 'Terjadi kesalahan tidak diketahui.'}`, 'error');
+  } finally {
+    downloadButton.disabled = results.length === 0;
+    cutButton.disabled = !img;
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+});
 </script>
 </body>
 </html>
