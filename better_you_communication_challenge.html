@@ -121,10 +121,12 @@ const defaultTopics=[
 ["Bagaimana cara mengelola uang dengan penghasilan terbatas?","Bahas prioritas kebutuhan, tabungan, dan risiko pengeluaran tak terduga."],
 ["Mengapa keamanan siber penting bagi masyarakat?","Berikan contoh ancaman dan kebiasaan pencegahan yang praktis."]
 ];
-let customTopics=Array.isArray(state.customTopics)?state.customTopics:[];
+
 const KEY='betterYouCommunicationV1';
-let state={checks:{},notes:'',reflection:'',nextStep:'',clarity:3,dark:false};
+let state={checks:{},notes:'',reflection:'',nextStep:'',clarity:3,dark:false,customTopics:[]};
 try{state={...state,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch(e){}
+let customTopics=Array.isArray(state.customTopics)?state.customTopics:[];
+
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){toast('Penyimpanan browser tidak tersedia. Catat progresmu secara manual.')}} 
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.display='none',2300)}
 function renderWeeks(){const grid=document.getElementById('weekGrid');grid.innerHTML='';weeks.forEach((w,wi)=>{const card=document.createElement('article');card.className='week-card '+w.cls;const count=w.tasks.filter((t,ti)=>!!state.checks[`${wi}-${ti}`]).length;card.innerHTML=`<div class="week-head"><div class="week-icon">${w.icon}</div><div><h2>${w.title}</h2><p>${w.subtitle}</p></div><span class="week-count">${count}/3</span></div><div class="task-list">${w.tasks.map((t,ti)=>{const id=`task-${wi}-${ti}`,checked=!!state.checks[`${wi}-${ti}`];return `<div class="task ${checked?'done':''}"><input type="checkbox" id="${id}" data-check="${wi}-${ti}" ${checked?'checked':''}><label for="${id}"><span class="task-title">${t[0]}</span><span class="task-desc">${t[1]}</span></label></div>`}).join('')}</div><div class="week-tip"><span>💡</span><div><b>Tips minggu ini</b>${w.tip}</div></div>`;grid.appendChild(card)});grid.querySelectorAll('[data-check]').forEach(el=>el.addEventListener('change',e=>{state.checks[e.target.dataset.check]=e.target.checked;persist();renderWeeks();updateProgress()}));}
@@ -149,7 +151,7 @@ function setupTimer(prefix,initialMinutes){let remaining=initialMinutes*60,timer
 setupTimer('timer',2);setupTimer('research',5);
 document.getElementById('clarity').value=state.clarity||3;document.getElementById('clarityVal').textContent=(state.clarity||3)+'/5';document.getElementById('clarity').addEventListener('input',e=>{state.clarity=Number(e.target.value);document.getElementById('clarityVal').textContent=e.target.value+'/5';persist()});document.getElementById('reflection').value=state.reflection||'';document.getElementById('nextStep').value=state.nextStep||'';document.getElementById('saveReflection').addEventListener('click',()=>{state.reflection=document.getElementById('reflection').value;state.nextStep=document.getElementById('nextStep').value;persist();document.getElementById('reflectionStatus').textContent='Refleksi tersimpan di browser ini ✓';toast('Refleksi tersimpan')});
 if(state.dark){document.body.classList.add('dark');document.getElementById('themeBtn').textContent='☀'}
-renderWeeks();updateProgress();showTimer();
+renderWeeks();updateProgress();
 </script>
 </body>
 </html>
